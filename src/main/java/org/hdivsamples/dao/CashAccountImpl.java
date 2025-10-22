@@ -19,7 +19,7 @@ public class CashAccountImpl implements CashAccountDao {
 	@Override
 	public List<CashAccount> findCashAccountsByUsername(final String username) {
 
-		String str = "select * from cashaccount  where username='" + username + "'";
+		String str = "select * from cashaccount where username=?";
 
 		RowMapper<CashAccount> rowMapper = new RowMapper<CashAccount>() {
 			@Override
@@ -33,7 +33,7 @@ public class CashAccountImpl implements CashAccountDao {
 				return localAccount;
 			}
 		};
-		return jdbcTemplate.query(str, rowMapper);
+		return jdbcTemplate.query(str, new Object[] { username }, rowMapper);
 	}
 
 	@Override

@@ -18,7 +18,7 @@ public class CreditAccountImpl implements CreditAccountDao {
 	@Override
 	public List<CreditAccount> findCreditAccountsByUsername(final String username) {
 
-		String str = "select * from creditaccount  where username='" + username + "'";
+		String str = "select * from creditaccount where username=?";
 
 		RowMapper<CreditAccount> rowMapper = new RowMapper<CreditAccount>() {
 			@Override
@@ -32,14 +32,14 @@ public class CreditAccountImpl implements CreditAccountDao {
 				return localAccount;
 			}
 		};
-		return jdbcTemplate.query(str, rowMapper);
+		return jdbcTemplate.query(str, new Object[] { username }, rowMapper);
 	}
 
 	@Override
 	public void updateCreditAccount(final int cashAccountId, final double round) {
 
-		String sql = "UPDATE creditAccount SET availablebalance='" + round + "' WHERE cashaccountid ='" + cashAccountId + "'";
-		jdbcTemplate.update(sql);
+		String sql = "UPDATE creditAccount SET availablebalance=? WHERE cashaccountid=?";
+		jdbcTemplate.update(sql, new Object[] { round, cashAccountId });
 	}
 
 	public void setJdbcTemplate(final JdbcTemplate paramJdbcTemplate) {
