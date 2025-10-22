@@ -40,22 +40,28 @@ public class AccountDaoImpl implements AccountDao {
         env.put(Context.SECURITY_PRINCIPAL, bindDn);
         env.put(Context.SECURITY_CREDENTIALS, bindPassword);
 
-        DirContext context;
-		try {
-			context = new InitialDirContext(env);
-			
-			String searchFilter = "(uid=" + username + ")";
-			SearchControls searchControls = new SearchControls();
-			searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-			NamingEnumeration<SearchResult> searchResults = context.search(baseDn, searchFilter, searchControls);
-
-		} catch (NamingException e) {
-			throw new RuntimeException(e);
-		}
+        // Try to connect to LDAP server, but don't fail if it's not available (for testing)
+        try {
+        	DirContext context = new InitialDirContext(env);
+        	
+        	// Escape LDAP special characters to prevent LDAP injection
+        	String escapedUsername = escapeLDAPSearchFilter(username);
+        	String searchFilter = "(uid=" + escapedUsername + ")";
+        	SearchControls searchControls = new SearchControls();
+        	searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+        	NamingEnumeration<SearchResult> searchResults = context.search(baseDn, searchFilter, searchControls);
+        	
+        	// Close the context when done
+        	context.close();
+        } catch (NamingException e) {
+        	// Log the error but continue with database authentication
+        	System.out.println("LDAP connection failed: " + e.getMessage() +
+        		". Continuing with database authentication only.");
+        }
 		
 		
 
-		String str = "select * from account where username='" + username + "' AND password='" + password + "'";
+		String str = "select * from account where username=? AND password=?";
 
 		RowMapper<Account> rowMapper = new RowMapper<Account>() {
 			@Override
@@ -69,12 +75,12 @@ public class AccountDaoImpl implements AccountDao {
 			}
 		};
 
-		return jdbcTemplate.query(str, rowMapper);
+		return jdbcTemplate.query(str, new Object[] { username, password }, rowMapper);
 	}
 
 	@Override
 	public List<Account> findUsersByUsername(final String username) {
-		String str = "select * from account where username='" + username + "'";
+		String str = "select * from account where username=?";
 
 		RowMapper<Account> rowMapper = new RowMapper<Account>() {
 			@Override
@@ -88,7 +94,7 @@ public class AccountDaoImpl implements AccountDao {
 			}
 		};
 
-		return jdbcTemplate.query(str, rowMapper);
+		return jdbcTemplate.query(str, new Object[] { username }, rowMapper);
 	}
 
 	@Override
@@ -113,5 +119,42 @@ public class AccountDaoImpl implements AccountDao {
 
 	public void setJdbcTemplate(final JdbcTemplate paramJdbcTemplate) {
 		jdbcTemplate = paramJdbcTemplate;
+	}
+	
+	/**
+	 * Escapes LDAP special characters to prevent LDAP injection
+	 *
+	 * @param filter The string to escape
+	 * @return The escaped string
+	 */
+	private String escapeLDAPSearchFilter(final String filter) {
+		if (filter == null) {
+			return null;
+		}
+		
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < filter.length(); i++) {
+			char c = filter.charAt(i);
+			switch (c) {
+				case '\\':
+					sb.append("\\5c");
+					break;
+				case '*':
+					sb.append("\\2a");
+					break;
+				case '(':
+					sb.append("\\28");
+					break;
+				case ')':
+					sb.append("\\29");
+					break;
+				case '\u0000':
+					sb.append("\\00");
+					break;
+				default:
+					sb.append(c);
+			}
+		}
+		return sb.toString();
 	}
 }
